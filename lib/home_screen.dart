@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'melody_extraction_yt.dart';
+import 'prediction.dart';
 
 class HomeScreen extends StatelessWidget {
   @override
@@ -57,9 +57,9 @@ class HomeScreen extends StatelessWidget {
                SizedBox(height: 30.0), 
                ElevatedButton(
                 onPressed: () {
-                  Navigator.push(
+                  Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(builder: (context) => MelodyExtractionScreen()),
+                    MaterialPageRoute(builder: (context) => PredictionPage()),
                   );
                 },
                 child: Text('Next', style: TextStyle(fontSize: 18.0, color: Colors.white)),

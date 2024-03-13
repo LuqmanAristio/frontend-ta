@@ -5,7 +5,9 @@ import 'dart:core';
 import 'dart:io';
 import 'about.dart'; 
 import 'prediction.dart';
-import 'melody_extraction_file.dart';
+import 'melody_extraction_yt.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:path/path.dart' as path;
 import 'dart:convert';
 
 bool isPlaying = false;
@@ -233,12 +235,12 @@ class _MusicPlayerWidgetState extends State<MusicPlayerWidget> {
   }
 }
 
-class MelodyExtractionScreen extends StatefulWidget {
+class MelodyFilePage extends StatefulWidget {
   @override
-  _MelodyExtractionScreenState createState() => _MelodyExtractionScreenState();
+  _MelodyFilePageState createState() => _MelodyFilePageState();
 }
 
-class _MelodyExtractionScreenState extends State<MelodyExtractionScreen> {
+class _MelodyFilePageState extends State<MelodyFilePage> {
   String? youtubeUrl;
   late String audioUrl;
   TextEditingController textEditingController = TextEditingController();
@@ -246,8 +248,9 @@ class _MelodyExtractionScreenState extends State<MelodyExtractionScreen> {
   bool isLoading = false;
   String errorString = "None";
   AudioPlayer player = AudioPlayer();
+  late File _audioFile = File('');
 
-  int _selectedIndex = 2;
+  int _selectedIndex = 1;
 
   void _navigateToPage(Widget page) {
     Navigator.push(
@@ -275,15 +278,16 @@ class _MelodyExtractionScreenState extends State<MelodyExtractionScreen> {
       _selectedIndex = index;
     });
 
+    print(index);
 
     switch (index) {
       case 0:
         _navigateToPage(PredictionPage());
         break;
       case 1:
-        _navigateToPage(MelodyFilePage());
         break;
       case 2:
+        _navigateToPage(MelodyExtractionScreen());
         break;
       case 3:
         _navigateToPage(AboutPage());
@@ -316,14 +320,13 @@ class _MelodyExtractionScreenState extends State<MelodyExtractionScreen> {
         });
       }
 
-      if (textEditingController.text.isEmpty ||
-          !isValidYoutubeUrl(textEditingController.text)) {
+      if (_audioFile?.path == '') {
         showDialog(
           context: context,
           builder: (BuildContext context) {
             return AlertDialog(
-              title: Text("Invalid URL"),
-              content: Text("Please enter a valid YouTube URL."),
+              title: Text("No File Selected"),
+              content: Text("Please select an audio file."),
               actions: [
                 TextButton(
                   onPressed: () {
@@ -341,18 +344,24 @@ class _MelodyExtractionScreenState extends State<MelodyExtractionScreen> {
         return;
       }
 
-       stop();
+      stop();
 
       String url = 'http://34.128.77.135:8000/api/convert/'; 
 
       try {
-        final response = await http.post(Uri.parse(url), body: {'youtube_url': textEditingController.text});
-        final String responseBody = response.body;
+        var request = http.MultipartRequest('POST', Uri.parse(url));
+        request.files.add(await http.MultipartFile.fromPath('audio_file', _audioFile!.path));
 
-        bool cek = responseBody.contains('error');
-        if (response.statusCode == 200 && !cek) {
-          Map<String, dynamic> jsonResponse = jsonDecode(response.body);
-          String audioUrl = jsonResponse['audio_url'];
+        var response = await request.send();
+
+        if (response.statusCode == 200) {
+          var responseBody = await response.stream.bytesToString();
+
+          // Parse JSON dari body responsenya
+          var jsonResponse = jsonDecode(responseBody);
+
+          // Ambil nilai dari kunci "audio_url"
+          var audioUrl = jsonResponse['audio_url'];
 
           setState(() {
             urlGoogleAudio = audioUrl;
@@ -362,25 +371,21 @@ class _MelodyExtractionScreenState extends State<MelodyExtractionScreen> {
           setState(() {
             isDataLoaded = true;
           });
-
         } else {
-          print('Error: ${response.body}');
+          print('Error: ${response.reasonPhrase}');
           setState(() {
-            errorString = 'Video not found';
+            errorString = 'Error: ${response.reasonPhrase}';
           });
         }
 
         setState(() {
-            isLoading = !isLoading;
+          isLoading = false;
         });
-
       } catch (e) {
-        setState(() {
-            isLoading = !isLoading;
-        });
         print('Exception: $e');
         setState(() {
-            errorString = 'Server not responding';
+          isLoading = false;
+          errorString = 'Server not responding';
         });
       }
     }
@@ -392,9 +397,6 @@ class _MelodyExtractionScreenState extends State<MelodyExtractionScreen> {
       player = AudioPlayer();
       await player.play(UrlSource(urlGoogleAudio));
     }
-
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -427,22 +429,33 @@ class _MelodyExtractionScreenState extends State<MelodyExtractionScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Image.asset(
-                      'assets/youtube.png',
+                      'assets/music.png',
                       width: 30.0,
                       height: 30.0,
                       fit: BoxFit.contain,
                     ),
                     SizedBox(height: 15.0), 
-                    TextFormField(
-                      controller: textEditingController,
-                      decoration: InputDecoration(
-                        labelText: 'Input URL youtue disini',
-                        border: OutlineInputBorder(),
-                        labelStyle: TextStyle(fontSize: 13.0),
-                        hintStyle: TextStyle(fontSize: 16.0),
-                        contentPadding: EdgeInsets.symmetric(vertical: 15.0, horizontal: 25.0),
+                    Container(
+                      width: MediaQuery.of(context).size.width * 0.1,
+                      color: Colors.grey.withOpacity(0.4), // Warna latar belakang abu
+                      child: TextButton(
+                        onPressed: () async {
+                          FilePickerResult? result = await FilePicker.platform.pickFiles(
+                            type: FileType.custom,
+                            allowedExtensions: ['wav', 'mp3'], 
+                            allowMultiple: false,
+                          );
+                          if (result != null) {
+                            setState(() {
+                              _audioFile = File(result.files.single.path!);
+                            });
+                          }
+                        },
+                        child: Text(
+                          _audioFile.path == '' ? 'Choose Audio File' : path.basename(_audioFile.path),
+                          style: TextStyle(fontSize: 16.0),
+                        ),
                       ),
-                      style: TextStyle(fontSize: 14.0),
                     ),
                   ],
                 ),
