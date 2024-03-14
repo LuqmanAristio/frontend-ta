@@ -9,6 +9,9 @@ import 'melody_extraction_yt.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as path;
 import 'dart:convert';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'dart:math';
 
 bool isPlaying = false;
 bool isDataLoaded= false;
@@ -91,34 +94,63 @@ class _MusicPlayerWidgetState extends State<MusicPlayerWidget> {
   }
 
   Future<void> downloadAudio() async {
+  setState(() {
+    isDownloading = true;
+  });
+
+  final http.Response response = await http.get(Uri.parse(urlGoogleAudio));
+
+  if (response.statusCode == 200) {
+      final String downloadsPath = '/storage/emulated/0/Download';
+
+      // Generate random filename
+      String randomString = getRandomString(10); // You can adjust the length as needed
+      final File file = File('$downloadsPath/ytmelody_$randomString.wav');
+
+      await file.writeAsBytes(response.bodyBytes);
+      setState(() {
+        audioFilePath = file.path;
+        isDownloading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Audio downloaded successfully in /Download/ytmelody_$randomString.wav'),
+        ),
+      );
+    } else {
+      // Tampilkan pesan kesalahan jika unduhan gagal
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to download audio'),
+        ),
+      );
+    }
+  }
+
+  // Function to generate a random string
+  String getRandomString(int length) {
+    const charset = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    Random random = Random();
+    return List.generate(length, (index) => charset[random.nextInt(charset.length)]).join();
+  }
+
+    Future<void> requestStoragePermission() async {
       setState(() {
         isDownloading = true;
       });
 
-      final http.Response response = await http.get(Uri.parse(urlGoogleAudio));
-
-      if (response.statusCode == 200) {
-        final String downloadsPath = '/storage/emulated/0/Download';
-
-        final File file = File('$downloadsPath/ytmelody.wav');
-        await file.writeAsBytes(response.bodyBytes);
-        setState(() {
-          audioFilePath = file.path;
-          isDownloading = false;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Audio downloaded successfully in /Download/ytmelody.wav'),
-          ),
-        );
+      var status = await Permission.storage.status;
+      if (!status.isGranted) {
+        status = await Permission.storage.request();
+      }
+      if (status.isGranted) {
+        downloadAudio();
       } else {
-        // Tampilkan pesan kesalahan jika unduhan gagal
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to download audio'),
-          ),
-        );
+        setState(() {
+          isDownloading = true;
+        });
+        print('Izin penyimpanan ditolak');
       }
     }
 
@@ -357,10 +389,8 @@ class _MelodyFilePageState extends State<MelodyFilePage> {
         if (response.statusCode == 200) {
           var responseBody = await response.stream.bytesToString();
 
-          // Parse JSON dari body responsenya
           var jsonResponse = jsonDecode(responseBody);
 
-          // Ambil nilai dari kunci "audio_url"
           var audioUrl = jsonResponse['audio_url'];
 
           setState(() {
