@@ -1,6 +1,5 @@
-# melatec_application
-
-A new Flutter project.
+# Music Similarity Detection based On Melody (Melatec)
+as a final project app submission
 
 ## Getting Started
 
